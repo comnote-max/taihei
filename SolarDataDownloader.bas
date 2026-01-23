@@ -17,21 +17,21 @@ Private Const ENDPOINT_URL As String = "https://services.energymntr.com/megasola
 Sub Download_DailyMonthly()
     On Error GoTo ErrorHandler
 
-    ' A1, B1から年月を取得
+    ' アクティブシートのA1, B1から年月を取得
     Dim targetYear As Integer
     Dim targetMonth As Integer
 
-    targetYear = Range("A1").Value
-    targetMonth = Range("B1").Value
+    targetYear = ActiveSheet.Range("A1").Value
+    targetMonth = ActiveSheet.Range("B1").Value
 
     ' バリデーション
     If targetYear < 2000 Or targetYear > 2100 Then
-        MsgBox "エラー: A1セルに正しい年（2000-2100）を入力してください。", vbCritical
+        MsgBox "エラー: アクティブシートのA1セルに正しい年（2000-2100）を入力してください。", vbCritical
         Exit Sub
     End If
 
     If targetMonth < 1 Or targetMonth > 12 Then
-        MsgBox "エラー: B1セルに正しい月（1-12）を入力してください。", vbCritical
+        MsgBox "エラー: アクティブシートのB1セルに正しい月（1-12）を入力してください。", vbCritical
         Exit Sub
     End If
 
@@ -73,18 +73,18 @@ End Sub
 Sub Download_MinuteDaily()
     On Error GoTo ErrorHandler
 
-    ' C6から前日の日付を計算
+    ' アクティブシートのC6から前日の日付を計算
     Dim targetDate As Date
     Dim targetYear As Integer
     Dim targetMonth As Integer
     Dim targetDay As Integer
 
-    If Not IsDate(Range("C6").Value) Then
-        MsgBox "エラー: C6セルに正しい日付を入力してください。", vbCritical
+    If Not IsDate(ActiveSheet.Range("C6").Value) Then
+        MsgBox "エラー: アクティブシートのC6セルに正しい日付を入力してください。", vbCritical
         Exit Sub
     End If
 
-    targetDate = Range("C6").Value - 1  ' 前日
+    targetDate = ActiveSheet.Range("C6").Value - 1  ' 前日
     targetYear = Year(targetDate)
     targetMonth = Month(targetDate)
     targetDay = Day(targetDate)
@@ -128,18 +128,18 @@ End Sub
 Sub Download_HourlyDaily()
     On Error GoTo ErrorHandler
 
-    ' C6から前日の日付を計算
+    ' アクティブシートのC6から前日の日付を計算
     Dim targetDate As Date
     Dim targetYear As Integer
     Dim targetMonth As Integer
     Dim targetDay As Integer
 
-    If Not IsDate(Range("C6").Value) Then
-        MsgBox "エラー: C6セルに正しい日付を入力してください。", vbCritical
+    If Not IsDate(ActiveSheet.Range("C6").Value) Then
+        MsgBox "エラー: アクティブシートのC6セルに正しい日付を入力してください。", vbCritical
         Exit Sub
     End If
 
-    targetDate = Range("C6").Value - 1  ' 前日
+    targetDate = ActiveSheet.Range("C6").Value - 1  ' 前日
     targetYear = Year(targetDate)
     targetMonth = Month(targetDate)
     targetDay = Day(targetDate)
@@ -202,13 +202,13 @@ Sub AutoDownloadAndImport()
     Dim targetMonth As Integer
     Dim targetDay As Integer
 
-    If Not IsDate(Range("C6").Value) Then
-        MsgBox "エラー: C6セルに正しい日付を入力してください。", vbCritical
+    If Not IsDate(ActiveSheet.Range("C6").Value) Then
+        MsgBox "エラー: アクティブシートのC6セルに正しい日付を入力してください。", vbCritical
         Application.StatusBar = False
         Exit Sub
     End If
 
-    targetDate = Range("C6").Value - 1
+    targetDate = ActiveSheet.Range("C6").Value - 1
     targetYear = Year(targetDate)
     targetMonth = Month(targetDate)
     targetDay = Day(targetDate)
@@ -274,11 +274,11 @@ Sub AutoDownloadAndImport()
     Dim reportYear As Integer
     Dim reportMonth As Integer
 
-    reportYear = Range("A1").Value
-    reportMonth = Range("B1").Value
+    reportYear = ActiveSheet.Range("A1").Value
+    reportMonth = ActiveSheet.Range("B1").Value
 
     If reportYear < 2000 Or reportYear > 2100 Or reportMonth < 1 Or reportMonth > 12 Then
-        MsgBox "警告: A1セル（年）またはB1セル（月）の値が不正です。月報のダウンロードをスキップします。", vbExclamation
+        MsgBox "警告: アクティブシートのA1セル（年）またはB1セル（月）の値が不正です。月報のダウンロードをスキップします。", vbExclamation
     Else
         Dim params3 As String
         params3 = "viewType=download" & _
