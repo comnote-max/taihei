@@ -7,6 +7,14 @@ Option Explicit
 
 ' エンドポイントURL（定数）
 Private Const ENDPOINT_URL As String = "https://services.energymntr.com/megasolar/TQL0228280/watch_dl_data/download.php"
+Private Const LOGIN_URL As String = "https://laplaceid.energymntr.com/"
+Private Const USER_ID As String = "KPG0228280"
+
+' クッキー保存先
+Private Const COOKIE_FILE_PATH As String = "\data\巡回data.xlsx"
+Private Const COOKIE_SHEET_NAME As String = "Sheet1"
+Private Const COOKIE_CELL As String = "Z1"
+Private Const COOKIE_DATE_CELL As String = "Z2"
 
 ' =============================================================================
 ' 【要件1】日次月報（PCS）ダウンロード
@@ -334,7 +342,182 @@ ErrorHandler:
 End Sub
 
 ' =============================================================================
-' 【共通処理】CSV ダウンロード関数
+' 【クッキー管理】Laplace ID ログイン
+' 機能: ログインしてセッションクッキーを取得
+' 戻り値: クッキー文字列（例: "PHPSESSID=abc123..."）
+' =============================================================================
+Private Function LoginAndGetCookie() As String
+    On Error GoTo ErrorHandler
+
+    ' パスワードを環境変数から取得
+    Dim password As String
+    password = CreateObject("WScript.Shell").ExpandEnvironmentStrings("%SOLAR_PASSWORD%")
+
+    If password = "%SOLAR_PASSWORD%" Or password = "" Then
+        MsgBox "エラー: 環境変数 SOLAR_PASSWORD が設定されていません。", vbCritical
+        LoginAndGetCookie = ""
+        Exit Function
+    End If
+
+    ' ログインリクエスト
+    Dim http As Object
+    Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+
+    ' コールバックURL
+    Dim callback As String
+    callback = "https://services.energymntr.com/megasolar/TQL0228280/login/index.php"
+
+    ' ログインURL組み立て（GETパラメータ）
+    Dim loginUrl As String
+    loginUrl = LOGIN_URL & "?callback=" & callback & _
+               "&idtext=" & USER_ID & _
+               "&pwtext=" & password
+
+    ' GETリクエスト送信
+    http.Open "GET", loginUrl, False
+    http.send
+
+    ' ステータス確認
+    If http.Status <> 200 Then
+        MsgBox "ログインエラー: ステータスコード " & http.Status, vbCritical
+        LoginAndGetCookie = ""
+        Exit Function
+    End If
+
+    ' Set-Cookie ヘッダーからクッキー抽出
+    Dim allHeaders As String
+    allHeaders = http.getAllResponseHeaders()
+
+    Dim cookieValue As String
+    cookieValue = ExtractCookieFromHeaders(allHeaders)
+
+    If cookieValue = "" Then
+        MsgBox "ログインエラー: クッキーを取得できませんでした。", vbCritical
+        LoginAndGetCookie = ""
+        Exit Function
+    End If
+
+    LoginAndGetCookie = cookieValue
+    Exit Function
+
+ErrorHandler:
+    MsgBox "ログインエラー：" & vbCrLf & Err.Description, vbCritical
+    LoginAndGetCookie = ""
+End Function
+
+' =============================================================================
+' 【クッキー管理】レスポンスヘッダーからクッキー抽出
+' =============================================================================
+Private Function ExtractCookieFromHeaders(ByVal headers As String) As String
+    On Error Resume Next
+
+    Dim lines() As String
+    lines = Split(headers, vbCrLf)
+
+    Dim line As Variant
+    For Each line In lines
+        If InStr(1, line, "Set-Cookie:", vbTextCompare) > 0 Then
+            ' "Set-Cookie: PHPSESSID=abc123; path=/; ..." から抽出
+            Dim cookiePart As String
+            cookiePart = Mid(line, InStr(line, ":") + 2)
+
+            ' セミコロンまでを取得
+            If InStr(cookiePart, ";") > 0 Then
+                cookiePart = Left(cookiePart, InStr(cookiePart, ";") - 1)
+            End If
+
+            ExtractCookieFromHeaders = Trim(cookiePart)
+            Exit Function
+        End If
+    Next line
+
+    ExtractCookieFromHeaders = ""
+End Function
+
+' =============================================================================
+' 【クッキー管理】巡回data.xlsxからクッキー読み込み
+' =============================================================================
+Private Function LoadCookie() As String
+    On Error GoTo ErrorHandler
+
+    Dim cookieFilePath As String
+    cookieFilePath = ThisWorkbook.Path & COOKIE_FILE_PATH
+
+    ' ファイル存在チェック
+    If Dir(cookieFilePath) = "" Then
+        LoadCookie = ""
+        Exit Function
+    End If
+
+    ' Excelファイルを開く
+    Dim wb As Workbook
+    Set wb = Workbooks.Open(cookieFilePath, ReadOnly:=True)
+
+    ' クッキー読み込み
+    Dim cookieValue As String
+    cookieValue = wb.Sheets(COOKIE_SHEET_NAME).Range(COOKIE_CELL).Value
+
+    wb.Close SaveChanges:=False
+
+    LoadCookie = cookieValue
+    Exit Function
+
+ErrorHandler:
+    On Error Resume Next
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    LoadCookie = ""
+End Function
+
+' =============================================================================
+' 【クッキー管理】巡回data.xlsxにクッキー保存
+' =============================================================================
+Private Sub SaveCookie(ByVal cookieValue As String)
+    On Error GoTo ErrorHandler
+
+    Dim cookieFilePath As String
+    cookieFilePath = ThisWorkbook.Path & COOKIE_FILE_PATH
+
+    ' dataフォルダ作成（存在しない場合）
+    Dim dataFolder As String
+    dataFolder = ThisWorkbook.Path & "\data"
+    If Dir(dataFolder, vbDirectory) = "" Then
+        MkDir dataFolder
+    End If
+
+    Dim wb As Workbook
+    Dim fileExists As Boolean
+    fileExists = (Dir(cookieFilePath) <> "")
+
+    If fileExists Then
+        ' 既存ファイルを開く
+        Set wb = Workbooks.Open(cookieFilePath)
+    Else
+        ' 新規ファイル作成
+        Set wb = Workbooks.Add
+    End If
+
+    ' クッキーと日時を保存
+    wb.Sheets(COOKIE_SHEET_NAME).Range(COOKIE_CELL).Value = cookieValue
+    wb.Sheets(COOKIE_SHEET_NAME).Range(COOKIE_DATE_CELL).Value = Now
+
+    ' 保存
+    If fileExists Then
+        wb.Close SaveChanges:=True
+    Else
+        wb.SaveAs cookieFilePath, FileFormat:=51  ' xlOpenXMLWorkbook
+        wb.Close SaveChanges:=False
+    End If
+
+    Exit Sub
+
+ErrorHandler:
+    On Error Resume Next
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    MsgBox "クッキー保存エラー：" & vbCrLf & Err.Description, vbCritical
+End Sub
+
+' =============================================================================
+' 【共通処理】CSV ダウンロード関数（クッキー管理付き）
 ' 機能: HTTPリクエストを送信してCSVファイルを保存
 ' 引数:
 '   postParams - POSTパラメータ（URLエンコード済み文字列）
@@ -346,14 +529,48 @@ End Sub
 Private Function DownloadCSV(ByVal postParams As String, ByVal fileName As String) As String
     On Error GoTo ErrorHandler
 
-    ' HTTP リクエストオブジェクト生成
+    ' 1. 保存されたクッキーを読み込み
+    Dim cookie As String
+    cookie = LoadCookie()
+
+    ' クッキーがない場合はログイン
+    If cookie = "" Then
+        cookie = LoginAndGetCookie()
+        If cookie = "" Then
+            MsgBox "ログインに失敗しました。", vbCritical
+            DownloadCSV = ""
+            Exit Function
+        End If
+        SaveCookie cookie
+    End If
+
+    ' 2. クッキー付きでダウンロード試行
     Dim http As Object
     Set http = CreateObject("MSXML2.XMLHTTP.6.0")
 
-    ' POST リクエスト送信
     http.Open "POST", ENDPOINT_URL, False
     http.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+    http.setRequestHeader "Cookie", cookie
     http.send postParams
+
+    ' 3. ステータス確認（403の場合は再ログイン）
+    If http.Status = 403 Then
+        ' クッキー無効 → 再ログイン
+        cookie = LoginAndGetCookie()
+        If cookie = "" Then
+            MsgBox "再ログインに失敗しました。", vbCritical
+            DownloadCSV = ""
+            Exit Function
+        End If
+        SaveCookie cookie
+
+        ' 再度ダウンロード試行
+        Set http = CreateObject("MSXML2.XMLHTTP.6.0")
+        http.Open "POST", ENDPOINT_URL, False
+        http.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+        http.setRequestHeader "Cookie", cookie
+        http.send postParams
+    End If
 
     ' ステータスコード確認
     If http.Status <> 200 Then
