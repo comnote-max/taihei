@@ -10,11 +10,11 @@ Private Const ENDPOINT_URL As String = "https://services.energymntr.com/megasola
 Private Const LOGIN_URL As String = "https://laplaceid.energymntr.com/"
 Private Const USER_ID As String = "KPG0228280"
 
-' クッキー保存先
-Private Const COOKIE_FILE_PATH As String = "\data\巡回data.xlsx"
+' クッキー保存先（専用ファイル）
+Private Const COOKIE_FILE_PATH As String = "\data\cookie_storage.xlsx"
 Private Const COOKIE_SHEET_NAME As String = "Sheet1"
-Private Const COOKIE_CELL As String = "Z1"
-Private Const COOKIE_DATE_CELL As String = "Z2"
+Private Const COOKIE_CELL As String = "A1"
+Private Const COOKIE_DATE_CELL As String = "B1"
 
 ' =============================================================================
 ' 【要件1】日次月報（PCS）ダウンロード
@@ -453,9 +453,9 @@ Private Function LoadCookie() As String
     Dim wb As Workbook
     Set wb = Workbooks.Open(cookieFilePath, ReadOnly:=True)
 
-    ' クッキー読み込み
+    ' クッキー読み込み（2行目から）
     Dim cookieValue As String
-    cookieValue = wb.Sheets(COOKIE_SHEET_NAME).Range(COOKIE_CELL).Value
+    cookieValue = wb.Sheets(COOKIE_SHEET_NAME).Range("A2").Value
 
     wb.Close SaveChanges:=False
 
@@ -496,9 +496,20 @@ Private Sub SaveCookie(ByVal cookieValue As String)
         Set wb = Workbooks.Add
     End If
 
-    ' クッキーと日時を保存
-    wb.Sheets(COOKIE_SHEET_NAME).Range(COOKIE_CELL).Value = cookieValue
-    wb.Sheets(COOKIE_SHEET_NAME).Range(COOKIE_DATE_CELL).Value = Now
+    Dim ws As Worksheet
+    Set ws = wb.Sheets(COOKIE_SHEET_NAME)
+
+    ' 新規ファイルの場合はヘッダーを追加
+    If Not fileExists Then
+        ws.Range("A1").Value = "Cookie"
+        ws.Range("B1").Value = "取得日時"
+        ws.Range("A2").Value = cookieValue
+        ws.Range("B2").Value = Now
+    Else
+        ' 既存ファイルの場合は2行目に上書き
+        ws.Range("A2").Value = cookieValue
+        ws.Range("B2").Value = Now
+    End If
 
     ' 保存
     If fileExists Then
