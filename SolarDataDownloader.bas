@@ -8,13 +8,17 @@ Option Explicit
 ' エンドポイントURL（定数）
 Private Const ENDPOINT_URL As String = "https://services.energymntr.com/megasolar/TQL0228280/watch_dl_data/download.php"
 Private Const LOGIN_URL As String = "https://laplaceid.energymntr.com/"
-Private Const USER_ID As String = "KPG0228280"
 
 ' クッキー保存先（専用ファイル）
 Private Const COOKIE_FILE_PATH As String = "\data\cookie_storage.xlsx"
 Private Const COOKIE_SHEET_NAME As String = "Sheet1"
 Private Const COOKIE_CELL As String = "A1"
 Private Const COOKIE_DATE_CELL As String = "B1"
+
+' 認証情報設定シート
+Private Const CONFIG_SHEET_NAME As String = "config"
+Private Const CONFIG_USERID_CELL As String = "Z1"
+Private Const CONFIG_PASSWORD_CELL As String = "Z2"
 
 ' =============================================================================
 ' 【要件1】日次月報（PCS）ダウンロード
@@ -349,12 +353,18 @@ End Sub
 Private Function LoginAndGetCookie() As String
     On Error GoTo ErrorHandler
 
-    ' パスワードを環境変数から取得
+    ' configシートからユーザーID・パスワードを取得
+    Dim userId As String
     Dim password As String
-    password = CreateObject("WScript.Shell").ExpandEnvironmentStrings("%SOLAR_PASSWORD%")
 
-    If password = "%SOLAR_PASSWORD%" Or password = "" Then
-        MsgBox "エラー: 環境変数 SOLAR_PASSWORD が設定されていません。", vbCritical
+    On Error Resume Next
+    userId = ThisWorkbook.Sheets(CONFIG_SHEET_NAME).Range(CONFIG_USERID_CELL).Value
+    password = ThisWorkbook.Sheets(CONFIG_SHEET_NAME).Range(CONFIG_PASSWORD_CELL).Value
+    On Error GoTo ErrorHandler
+
+    ' バリデーション
+    If userId = "" Or password = "" Then
+        MsgBox "エラー: 「config」シートのZ1（ユーザーID）またはZ2（パスワード）が設定されていません。", vbCritical
         LoginAndGetCookie = ""
         Exit Function
     End If
@@ -370,7 +380,7 @@ Private Function LoginAndGetCookie() As String
     ' ログインURL組み立て（GETパラメータ）
     Dim loginUrl As String
     loginUrl = LOGIN_URL & "?callback=" & callback & _
-               "&idtext=" & USER_ID & _
+               "&idtext=" & userId & _
                "&pwtext=" & password
 
     ' GETリクエスト送信
