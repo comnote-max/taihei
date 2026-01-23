@@ -11,29 +11,25 @@ Private Const ENDPOINT_URL As String = "https://services.energymntr.com/megasola
 ' =============================================================================
 ' 【要件1】日次月報（PCS）ダウンロード
 ' 用途: 1日単位の月報データをPCSから取得
-' セル参照: A1=年, B1=月
+' セル参照: C6（C6の年月を使用）
 ' ファイル名: 月報_{年}_{月}.csv
 ' =============================================================================
 Sub Download_DailyMonthly()
     On Error GoTo ErrorHandler
 
-    ' アクティブシートのA1, B1から年月を取得
+    ' アクティブシートのC6から年月を取得
+    Dim targetDate As Date
     Dim targetYear As Integer
     Dim targetMonth As Integer
 
-    targetYear = ActiveSheet.Range("A1").Value
-    targetMonth = ActiveSheet.Range("B1").Value
-
-    ' バリデーション
-    If targetYear < 2000 Or targetYear > 2100 Then
-        MsgBox "エラー: アクティブシートのA1セルに正しい年（2000-2100）を入力してください。", vbCritical
+    If Not IsDate(ActiveSheet.Range("C6").Value) Then
+        MsgBox "エラー: アクティブシートのC6セルに正しい日付を入力してください。", vbCritical
         Exit Sub
     End If
 
-    If targetMonth < 1 Or targetMonth > 12 Then
-        MsgBox "エラー: アクティブシートのB1セルに正しい月（1-12）を入力してください。", vbCritical
-        Exit Sub
-    End If
+    targetDate = ActiveSheet.Range("C6").Value
+    targetYear = Year(targetDate)
+    targetMonth = Month(targetDate)
 
     ' パラメータ組立
     Dim params As String
@@ -177,10 +173,11 @@ End Sub
 ' =============================================================================
 ' 【統合版】3ファイル自動ダウンロード + 既存Import処理の呼び出し
 ' 用途: 手動ダウンロード→手動ファイル選択の作業を完全自動化
+' セル参照: C6（すべてC6の日付を基準）
 ' 処理順序:
-'   1. 前日の1分間隔日報ダウンロード
-'   2. 前日の1時間間隔日報ダウンロード
-'   3. 月報ダウンロード
+'   1. C6の前日の1分間隔日報ダウンロード
+'   2. C6の前日の1時間間隔日報ダウンロード
+'   3. C6の年月の月報ダウンロード
 '   4. ImportDailyCsv_BB_BC_BD_ToDB を呼び出し（※既存プロシージャが必要）
 ' =============================================================================
 Sub AutoDownloadAndImport()
@@ -267,40 +264,37 @@ Sub AutoDownloadAndImport()
     End If
 
     ' ================================================
-    ' ステップ3: 月報ダウンロード
+    ' ステップ3: 月報ダウンロード（C6の年月を使用）
     ' ================================================
     Application.StatusBar = "3/3: 月報ダウンロード中..."
 
     Dim reportYear As Integer
     Dim reportMonth As Integer
 
-    reportYear = ActiveSheet.Range("A1").Value
-    reportMonth = ActiveSheet.Range("B1").Value
+    ' C6の日付から年月を取得
+    reportYear = Year(ActiveSheet.Range("C6").Value)
+    reportMonth = Month(ActiveSheet.Range("C6").Value)
 
-    If reportYear < 2000 Or reportYear > 2100 Or reportMonth < 1 Or reportMonth > 12 Then
-        MsgBox "警告: アクティブシートのA1セル（年）またはB1セル（月）の値が不正です。月報のダウンロードをスキップします。", vbExclamation
-    Else
-        Dim params3 As String
-        params3 = "viewType=download" & _
-                  "&gid=1" & _
-                  "&nid=-1" & _
-                  "&unit=day" & _
-                  "&range=monthly" & _
-                  "&type=pcs" & _
-                  "&startYear=" & reportYear & _
-                  "&startMonth=" & reportMonth
+    Dim params3 As String
+    params3 = "viewType=download" & _
+              "&gid=1" & _
+              "&nid=-1" & _
+              "&unit=day" & _
+              "&range=monthly" & _
+              "&type=pcs" & _
+              "&startYear=" & reportYear & _
+              "&startMonth=" & reportMonth
 
-        Dim fileName3 As String
-        fileName3 = "月報_" & reportYear & "_" & Format(reportMonth, "00") & ".csv"
+    Dim fileName3 As String
+    fileName3 = "月報_" & reportYear & "_" & Format(reportMonth, "00") & ".csv"
 
-        Dim filePath3 As String
-        filePath3 = DownloadCSV(params3, fileName3)
+    Dim filePath3 As String
+    filePath3 = DownloadCSV(params3, fileName3)
 
-        If filePath3 = "" Then
-            MsgBox "月報のダウンロードに失敗しました。", vbCritical
-            Application.StatusBar = False
-            Exit Sub
-        End If
+    If filePath3 = "" Then
+        MsgBox "月報のダウンロードに失敗しました。", vbCritical
+        Application.StatusBar = False
+        Exit Sub
     End If
 
     ' ================================================
